@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run release-please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PAT }}
+          release-type: python
+
+      # Everything below only runs when release-please merges a release PR
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build tools
+        run: pip install build twine
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Build distribution
+        run: python -m build
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          tag_name: ${{ steps.release.outputs.tag_name }}
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+
+      # Optional: uncomment to also publish to PyPI
+      # - name: Publish to PyPI
+      #   run: twine upload dist/*
+      #   if: ${{ steps.release.outputs.release_created }}
+      #   env:
+      #     TWINE_USERNAME: __token__
+      #     TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
